@@ -100,21 +100,29 @@ def time_handler(message):
 
 def help_handler(message):
     try:
-        help_text = """📋 Доступные команды:
+        help_text = """
+Доступные команды:
 
-⏰ ;time - текущее время по МСК
-🔗 ;getlink [id123|name] - получить ссылку на пользователя
-📝 ;update - обновить список ссылок (указать с новой строки)
-📋 ;links - показать сохраненные ссылки
-🎯 ;get [link] - отправить /getquests для одной ссылки
-🚀 ;getquest - отправить /getquests для всех ссылок
-⏹️ ;stopget - остановить отправку квестов
-📝 ;quests - квесты с последней фиксации
-ℹ️ ;sysinfo - запросить состояние бота
+Общие команды:
+;time - текущее время
+;getlink [упоминание/ответ] - получение оригинальной ссылки
+;sysinfo - состояние бота
+;invite - приглашение пользователя в чат
+;uninvite - исключение пользователя из чата
+;black - добавление пользователя в черный список
+;unblack - удаление пользователя из черного списка
 
-🤖 Автоматика:
-• Ежедневно в 23:50 МСК автоматически отправляются квесты для всех ссылок
-• Авто-квесты отправляются в чат 2000000406
+Модуль Quests:
+;update - обновление списка ссылок
+;links - просмотр сохраненных ссылок
+;get [link] - отправка /getquests для указанной ссылки
+;getquest - отправка /getquests для всех ссылок
+;stopget - остановка отправки квестов
+;quests - просмотр квестов с последней фиксации
+
+Автоматические операции:
+• Ежедневная отправка квестов для всех ссылок в 23:50 МСК
+• Авто-квесты направляются в чат 2000000406
 """
 
         is_from_me = message.get("is_from_me", False)
@@ -178,11 +186,11 @@ def sysinfo_handler(message):
                 user_info = vk_api.get_user_info(user_id)
                 if user_info:
                     user = user_info[0]
-                    user_link = f"[id{user_id}|{user["first_name"]} {user["last_name"]}]"
+                    user_link = f"[https://vk.com/id{user_id}|{user["first_name"]} {user["last_name"]}]"
                     allowed_users_info.append(user_link)
             except Exception as e:
                 log_error(f"Ошибка получения информации о пользователе {user_id}: {e}")
-                allowed_users_info.append(f"[id{user_id}|Неизвестный]")
+                allowed_users_info.append(f"[https://vk.com/id{user_id}|Неизвестный]")
         
         users_list = "; \n".join(allowed_users_info)
         
@@ -384,29 +392,37 @@ def black_handler(message):
         is_from_me = message.get("is_from_me", False)
 
         if not (is_from_me or from_id == 616387458):
-            return {"text": "🚫 У тебя нет прав для использования этой команды."}
+            return
+        
         if not args:
-            return {"text": "❌ Укажи пользователя: /black [ссылка|id|@username]", "edit_message_id": message_id}
+            return {"text": "📛 | Укажи пользователя: ;black [упоминание / ответ на сообщение]", "edit_message_id": message_id}
 
-        user_id = resolve_user_id(vk_api, args[0])
+        user_id = resolve_user_id(args[0])
         if not user_id:
-            return {"text": "❌ Не удалось определить пользователя.", "edit_message_id": message_id}
+            return {"text": "📛 | Не удалось определить пользователя", "edit_message_id": message_id}
         if user_id == from_id:
-            return {"text": "❌ Нельзя заносить себя в ЧС.", "edit_message_id": message_id}
+            return {"text": "📛 | Нельзя заносить себя в ЧС", "edit_message_id": message_id}
 
+        # Пытаемся выполнить бан
         try:
             vk_api.vk.account.banUser(user_id=user_id)
-            text_resp = f"✅ [id{user_id}|Пользователь] занесён в ЧС ВКонтакте."
+            text_resp = f"✅ | [https://vk.com/id{user_id}|Пользователь] занесён в ЧС"
+            log_info(f"Команда black выполнена пользователем {from_id} → {user_id}")
+            
+            result = {"text": text_resp, "edit_message_id": message_id}
+            return result
+            
         except Exception as e:
-            text_resp = f"❌ Не удалось добавить [id{user_id}|пользователя] в ЧС."
+            text_resp = (
+                f"⚠️ | Ошибка при добавлении [https://vk.com/id{user_id}|пользователя] в ЧС\n\n"
+                f"🪦 | Ошибка: {e}"
+            )
             log_error("Ошибка account.banUser", error=e)
-
-        log_info(f"Команда black выполнена пользователем {from_id} → {user_id}")
-        return {"text": text_resp, "edit_message_id": message_id}
+            return {"text": text_resp, "edit_message_id": message_id}
 
     except Exception as e:
         log_error("Ошибка в black_handler", error=e)
-        return {"text": "❌ Ошибка при обработке команды black", "edit_message_id": message.get("id")}
+        return {"text": f"⚠️ | Ошибка при добавлении пользователя в ЧС\n\n🪦 | Ошибка: {e}", "edit_message_id": message.get("id")}
 
 
 def unblack_handler(message):
@@ -418,25 +434,32 @@ def unblack_handler(message):
         is_from_me = message.get("is_from_me", False)
 
         if not (is_from_me or from_id == 616387458):
-            return {"text": "🚫 У тебя нет прав для использования этой команды."}
+            return
+        
         if not args:
-            return {"text": "❌ Укажи пользователя: /unblack [ссылка|id|@username]", "edit_message_id": message_id}
+            return {"text": "📛 | Укажи пользователя: ;unblack [упоминание / ответ на сообщение]", "edit_message_id": message_id}
 
-        user_id = resolve_user_id(vk_api, args[0])
+        user_id = resolve_user_id(args[0])
         if not user_id:
-            return {"text": "❌ Не удалось определить пользователя.", "edit_message_id": message_id}
+            return {"text": "📛 | Не удалось определить пользователя.", "edit_message_id": message_id}
 
         try:
             vk_api.vk.account.unbanUser(user_id=user_id)
-            text_resp = f"✅ [id{user_id}|Пользователь] удалён из ЧС ВКонтакте."
+            text_resp = f"✅ | [https://vk.com/id{user_id}|Пользователь] удалён из ЧС"
+            log_info(f"Команда unblack выполнена пользователем {from_id} → {user_id}")
+            
+            result = {"text": text_resp, "edit_message_id": message_id}
+            return result
+            
         except Exception as e:
-            text_resp = f"❌ Не удалось удалить [id{user_id}|пользователя] из ЧС."
-            log_error("Ошибка account.unbanUser", error=e)
-
-        log_info(f"Команда unblack выполнена пользователем {from_id} → {user_id}")
-        return {"text": text_resp, "edit_message_id": message_id}
+            text_resp = (
+                f"⚠️ | Ошибка при удалении [https://vk.com/id{user_id}|пользователя] из ЧС\n\n"
+                f"🪦 | Ошибка: {e}"
+            )
+            log_error("Ошибка account.unban", error=e)
+            return {"text": text_resp, "edit_message_id": message_id}
 
     except Exception as e:
         log_error("Ошибка в unblack_handler", error=e)
-        return {"text": "❌ Ошибка при обработке команды unblack", "edit_message_id": message.get("id")}
+        return {"text": f"⚠️ | Ошибка при удалении пользователя из ЧС\n\n🪦 | Ошибка: {e}", "edit_message_id": message.get("id")}
 
