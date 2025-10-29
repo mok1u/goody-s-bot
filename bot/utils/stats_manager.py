@@ -1,6 +1,5 @@
 import json
 import os
-
 from bot.utils.logger import log_error
 
 class StatsManager:

@@ -1,8 +1,7 @@
 import logging
 import os
-from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
-
+from datetime import datetime
 import pytz
 
 class MoscowTimeFormatter(logging.Formatter):
@@ -69,6 +68,8 @@ def setup_logger():
     
     return logger
 
+logger = setup_logger()
+
 def log_debug(message, error=None):
     full_message = message
     if error:
@@ -98,5 +99,3 @@ def log_critical(message, error=None):
     if error:
         full_message += f" - {str(error)}"
     logger.critical(full_message)
-
-logger = setup_logger()

@@ -1,5 +1,4 @@
 import time
-
 from bot.utils.stats_manager import StatsManager
 
 class SystemInfo:

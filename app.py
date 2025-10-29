@@ -1,17 +1,15 @@
+from bot.core.vk_api import VKAPI
+from bot.handlers.router import message_router
+from bot.utils.logger import log_info, log_error, log_critical
+from bot.utils.helpers import remove_pycache
+from vk_api.longpoll import VkEventType
+from bot.utils.system_info import SystemInfo
+from bot.handlers.event_handlers import QuestEventHandler
+
 import threading
 import time
-from datetime import datetime
-
 import pytz
-from vk_api.longpoll import VkEventType
-
-from config import ACCESS_TOKEN, API_VERSION, ALLOWED_USERS
-from bot.core.vk_api import VKAPI
-from bot.handlers.event_handlers import QuestEventHandler
-from bot.handlers.router import message_router
-from bot.utils.helpers import remove_pycache
-from bot.utils.logger import log_critical, log_error, log_info
-from bot.utils.system_info import SystemInfo
+from datetime import datetime
 
 class VKBot:
     def __init__(self, access_token, allowed_users, api_version='5.199'):
@@ -49,7 +47,7 @@ class VKBot:
                 moscow_tz = pytz.timezone('Europe/Moscow')
                 now = datetime.now(moscow_tz)
                 
-                if now.hour == 10 and now.minute == 1:
+                if now.hour == 23 and now.minute == 50:
                     log_info("Автоматический запуск getquest в чат 2000000406")
                     self.vk_api.send_message(peer_id=self.target_chat_id, message="Автоматическая фиксация квестов")
                     self._run_auto_quest()
@@ -79,9 +77,10 @@ class VKBot:
                 self.quest_event_handler.add_pending_quest(peer_id, link)
                 message_text = f"/getquests {link}"
                 self.vk_api.send_message(peer_id=self.target_chat_id, message=message_text)
-                time.sleep(2)
+                time.sleep(3)
             
             self.vk_api.send_message(peer_id=self.target_chat_id, message="Квесты зафиксированы")
+            self.vk_api.send_message(peer_id=self.target_chat_id, message="/botadmins")
             log_info("Авто-квесты завершены")
             
         except Exception as e:
@@ -147,6 +146,7 @@ class VKBot:
             log_error("Ошибка при обработке сообщения", error=e)
 
 def main():
+    from config import ACCESS_TOKEN, API_VERSION, ALLOWED_USERS
     
     remove_pycache()
     

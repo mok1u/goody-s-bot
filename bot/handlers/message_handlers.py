@@ -1,7 +1,4 @@
-import json
-import os
 import re
-import threading
 import time
 from datetime import datetime
 
@@ -9,56 +6,26 @@ import psutil
 import pytz
 
 from bot.utils import resolve_user_id
-from bot.utils.logger import log_info, log_error
+from bot.utils.logger import log_error, log_info
 from config import BOT_PREFIX
 
-def time_handler(message):
-    try:
-        moscow_tz = pytz.timezone("Europe/Moscow")
-        current_time = datetime.now(moscow_tz)
-        time_str = current_time.strftime("%d.%m.%Y %H:%M:%S")
-        
-        response = f"🕐 Текущее время: {time_str}"
-        log_info(f"Выполнена команда time для {message["from_id"]}")
-        
-        is_from_me = message.get("is_from_me", False)
-        
-        if is_from_me or int(message["from_id"]) == 616387458:
-            return {
-                "text": response,
-                "edit_message_id": message["id"]
-            }
-        else:
-            return {
-                "text": response
-            }
-    except Exception as e:
-        log_info(f"Ошибка в time_handler: {e}")
-        if message.get("is_from_me", False) or int(message["from_id"]) == 616387458:
-            return {
-                "text": "❌ Ошибка при получении времени",
-                "edit_message_id": message["id"]
-            }
-        else:
-            return {
-                "text": "❌ Ошибка при получении времени"
-            }
 
 def getlink_handler(message):
     try:
+        is_from_me = message.get("is_from_me", False)
+        if not is_from_me or int(message["from_id"]) != 616387458:
+            return
         vk_api = message.get("vk_api")
         text = message.get("text", "").strip()
         args = text.split()[1:]
         message_id = message.get("id")
-        is_from_me = message.get("is_from_me", False) 
 
         target_user = None
         user_id = None
 
         if args:
             user_input = args[0]
-            if user_input.startswith("[id") and "|" in user_input:
-                user_id = user_input.split("|")[0][3:]
+            user_id = resolve_user_id(mention=user_input)
 
         if not user_id:
             try:
@@ -77,317 +44,60 @@ def getlink_handler(message):
                 target_user = user_info[0]
 
         if not target_user:
-            text_resp = "❌ Укажи пользователя: /getlink [id123|name] или ответь на сообщение."
-            if is_from_me or int(message["from_id"]) == 616387458:  
-                return {"text": text_resp, "edit_message_id": message_id}
-            else:
-                return {"text": text_resp}
+            response = "❌ | Укажи пользователя: /getlink [Упоминание / ответ на сообщение] "
+            return {
+                "text": response,
+                "edit_message_id": message["id"]
+            }
 
         user_id = target_user["id"]
         first_name = target_user.get("first_name", "")
         last_name = target_user.get("last_name", "")
         link = f"https://vk.com/id{user_id}"
 
-        formatted_link = f"👤 {first_name} {last_name}\n🔗 {link}"
+        formatted_link = f"👤 {first_name} {last_name}\n🔗 {link}\n ID: {user_id}"
 
         log_info(f"Использовано getlink для {message['from_id']}")
-        if is_from_me or int(message["from_id"]) == 616387458:
-            return {
-                "text": formatted_link,
-                "edit_message_id": message_id
-            }
-        else:
-            return {
-                "text": formatted_link
-            }
+        return {
+            "text": formatted_link,
+            "edit_message_id": message_id
+        }
 
     except Exception as e:
         log_error("Ошибка в getlink_handler", error=e)
-        if is_from_me or int(message["from_id"]) == 616387458:
-            return {
-                "text": "❌ Ошибка при получении информации",
-                "edit_message_id": message.get("id")
-            }
-        else:
-            return {
-                "text": "❌ Ошибка при получении информации"
-            }
+        return {
+            "text": "❌ Ошибка при получении информации",
+            "edit_message_id": message.get("id")
+        }
 
-def update_handler(message):
+
+def time_handler(message):
     try:
-        vk_api = message.get("vk_api")
-        text = message.get("text", "").strip()
-        args = text.split("\n")[1:]
-        message_id = message.get("id")
         is_from_me = message.get("is_from_me", False)
+        if not is_from_me or int(message["from_id"]) != 616387458:
+            return
         
-        if not args:
-            if is_from_me or int(message["from_id"]) == 616387458:
-                return {
-                    "text": "❌ Укажи ссылки на пользователей с новой строки",
-                    "edit_message_id": message_id
-                }
-            else:
-                return {
-                    "text": "❌ Укажи ссылки на пользователей с новой строки"
-                }
+        moscow_tz = pytz.timezone("Europe/Moscow")
+        current_time = datetime.now(moscow_tz)
+        time_str = current_time.strftime("%d.%m.%Y %H:%M:%S")
         
-        results = []
-        valid_links = []
+        response = f"🕐 Текущее время: {time_str}"
+        log_info(f"Выполнена команда time для {message["from_id"]}")
         
-        for link in args:
-            link = link.strip()
-            if link.startswith("https://vk.com/id") and link[18:].isdigit():
-                user_id = link[17:]
-                user_info = vk_api.get_user_info(user_id)
-                
-                if user_info and len(user_info) > 0:
-                    user = user_info[0]
-                    first_name = user.get("first_name", "")
-                    last_name = user.get("last_name", "")
-                    if str(user["id"]) == user_id:
-                        results.append(f"✅ {first_name} {last_name} - {link}")
-                        valid_links.append(link)
-                    else:
-                        results.append(f"❌ Несоответствие ID - {link}")
-                else:
-                    results.append(f"❌ Не найден - {link}")
-            else:
-                results.append(f"❌ Неверный формат - {link}")
-        
-        if valid_links:
-            with open("links.txt", "w", encoding="utf-8") as f:
-                for link in valid_links:
-                    f.write(link + "\n")
-        
-        response_text = "Результат:\n" + "\n".join(results)
-        
-        if valid_links:
-            response_text += f"\n\n💾 Сохранено: {len(valid_links)}"
-        
-        log_info(f"Выполнено update для {message["from_id"]}")
-        if is_from_me or int(message["from_id"]) == 616387458:
-            return {
-                "text": response_text,
-                "edit_message_id": message_id
-            }
-        else:
-            return {
-                "text": response_text
-            }
-        
+        is_from_me = message.get("is_from_me", False)
+    
+        return {
+            "text": response,
+            "edit_message_id": message["id"]
+        }
     except Exception as e:
-        log_error("Ошибка в update_handler", error=e)
-        if message.get("is_from_me", False) or int(message["from_id"]) == 616387458:
-            return {
-                "text": "❌ Ошибка при обработке",
-                "edit_message_id": message.get("id")
-            }
-        else:
-            return {
-                "text": "❌ Ошибка при обработке"
-            }
+        log_info(f"Ошибка в time_handler: {e}")
+        return {
+            "text": "❌ Ошибка при получении времени",
+            "edit_message_id": message["id"]
+        }
 
-def links_handler(message):
-    try:
-        message_id = message.get("id")
-        is_from_me = message.get("is_from_me", False)
-        
-        try:
-            with open("links.txt", "r", encoding="utf-8") as f:
-                links = f.read().strip().split("\n")
-        except FileNotFoundError:
-            if is_from_me:
-                return {
-                    "text": "📭 Файл c ссылками не найден",
-                    "edit_message_id": message_id
-                }
-            else:
-                return {
-                    "text": "📭 Файл c ссылками не найден"
-                }
-        
-        if not links or links == [""]:
-            if is_from_me or int(message["from_id"]) == 616387458:
-                return {
-                    "text": "📭 Ссылок нет",
-                    "edit_message_id": message_id
-                }
-            else:
-                return {
-                    "text": "📭 Ссылок нет"
-                }
-        
-        links_list = []
-        for i, link in enumerate(links, 1):
-            if link.strip():
-                links_list.append(f"{i}. {link.strip()}")
-        
-        response_text = "📋 Сохраненные ссылки:\n" + "\n".join(links_list)
-        log_info(f"Выполнено links для {message["from_id"]}")
-        if len(response_text) > 4000:
-            response_text = "📋 Ссылок слишком много для отображения"
-        
-        if is_from_me:
-            return {
-                "text": response_text,
-                "edit_message_id": message_id
-            }
-        else:
-            return {
-                "text": response_text
-            }
 
-    except Exception as e:
-        log_error("Ошибка в links_handler", error=e)
-        if message.get("is_from_me", False) or int(message["from_id"]) == 616387458:
-            return {
-                "text": "❌ Ошибка при чтении файла",
-                "edit_message_id": message.get("id")
-            }
-        else:
-            return {
-                "text": "❌ Ошибка при чтении файла"
-            }
-
-def get_handler(message):
-    try:
-        vk_api = message.get("vk_api")
-        text = message.get("text", "").strip()
-        args = text.split()[1:]
-        peer_id = message.get("peer_id")
-        message_id = message.get("id")
-        is_from_me = message.get("is_from_me", False)
-        
-        if not args:
-            if is_from_me:
-                return {
-                    "text": "❌ Укажи ссылку: ;get [link]",
-                    "edit_message_id": message_id
-                }
-            else:
-                return {
-                    "text": "❌ Укажи ссылку: ;get [link]"
-                }
-        
-        link = args[0]
-        
-        log_info(f"Использовано get для {message['from_id']}")
-        if is_from_me or int(message["from_id"]) == 616387458:
-            vk_api.delete_message(peer_id=peer_id, message_ids=message_id)
-        
-        vk_api.send_message(
-            peer_id=peer_id,
-            message=f"/getquests {link}"
-        )
-        
-        return None
-
-    except Exception as e:
-        log_error("Ошибка в get_handler", error=e)
-        if message.get("is_from_me", False) or int(message["from_id"]) == 616387458:
-            return {
-                "text": "❌ Ошибка при обработке команды",
-                "edit_message_id": message.get("id")
-            }
-        else:
-            return {
-                "text": "❌ Ошибка при обработке команды"
-            }
-
-def getquest_handler(message):
-    try:
-        vk_api = message.get("vk_api")
-        peer_id = message.get("peer_id")
-        message_id = message.get("id")
-        bot = message.get("bot")
-        
-        bot.stop_quests = False
-        
-        def send_quests():
-            try:
-                with open("links.txt", "r", encoding="utf-8") as f:
-                    links = [link.strip() for link in f.readlines() if link.strip()]
-                
-                if not links:
-                    return
-                
-                bot.quest_event_handler.clear_quests()
-                
-                for link in links:
-                    if bot.stop_quests:
-                        vk_api.send_message(peer_id=peer_id, message="⏹️ Получение квестов остановлено")
-                        return
-                    
-                    bot.quest_event_handler.add_pending_quest(peer_id, link)
-                    
-                    message_text = f"/getquests {link}"
-                    vk_api.send_message(peer_id=peer_id, message=message_text)
-                    
-                    time.sleep(1)
-                    
-            except Exception as e:
-                log_error("Ошибка в потоке отправки квестов", error=e)
-
-        is_from_me = message.get("is_from_me", False)
-        log_info(f"Использовано getquest для {message['from_id']}")
-        if is_from_me or int(message["from_id"]) == 616387458:
-            vk_api.edit_message(
-                peer_id=peer_id,
-                message_id=message_id,
-                message="⏳ Отправляю запросы на квесты..."
-            )
-        
-        thread = threading.Thread(target=send_quests)
-        thread.daemon = True
-        thread.start()
-        
-        return None
-
-    except Exception as e:
-        log_error("Ошибка в getquest_handler", error=e)
-        is_from_me = message.get("is_from_me", False)
-        if is_from_me or int(message["from_id"]) == 616387458:
-            return {
-                "text": "❌ Ошибка при обработке команды",
-                "edit_message_id": message.get("id")
-            }
-        else:
-            return {
-                "text": "❌ Ошибка при обработке команды"
-            }
-
-def stopget_handler(message):
-    try:
-        bot = message.get("bot")
-        message_id = message.get("id")
-        
-        bot.stop_quests = True
-        is_from_me = message.get("is_from_me", False)
-
-        log_info(f"Использовано stopget для {message['from_id']}")
-        if is_from_me or int(message["from_id"]) == 616387458:
-            return {
-                "text": "⏹️ Получение квестов остановлено",
-                "edit_message_id": message_id
-            }
-        else:
-            return {
-                "text": "⏹️ Получение квестов остановлено"
-            }
-
-    except Exception as e:
-        log_error("Ошибка в stopget_handler", error=e)
-        if is_from_me or int(message["from_id"]) == 616387458:
-            return {
-                "text": "❌ Ошибка при остановке",
-                "edit_message_id": message.get("id")
-            }
-        else:
-            return {
-                "text": "❌ Ошибка при остановке"
-            }
-        
 def help_handler(message):
     try:
         help_text = """📋 Доступные команды:
@@ -430,6 +140,7 @@ def help_handler(message):
             return {
                 "text": "❌ Ошибка при выводе справки"
             }
+
 
 def sysinfo_handler(message):
     try:
@@ -516,84 +227,6 @@ def sysinfo_handler(message):
                 "text": "❌ Ошибка при получении системной информации"
             }
 
-def quests_handler(message):
-    try:
-        vk_api = message.get("vk_api")
-        message_id = message.get("id")
-        from_id = int(message.get("from_id"))
-        is_from_me = message.get("is_from_me", False)
-        file_path = "quests.json"
-
-        if not os.path.exists(file_path):
-            text_resp = "❌ Файл quests.json не найден."
-            if is_from_me or from_id == 616387458:
-                return {"text": text_resp, "edit_message_id": message_id}
-            else:
-                return {"text": text_resp}
-
-        with open(file_path, "r", encoding="utf-8") as f:
-            quests_data = json.load(f)
-
-        if not quests_data:
-            text_resp = "⚠️ Квестов пока нет."
-            if is_from_me or from_id == 616387458:
-                return {"text": text_resp, "edit_message_id": message_id}
-            else:
-                return {"text": text_resp}
-
-        response_lines = ["📋 Список квестов:\n"]
-
-        for user_id, quests in quests_data.items():
-            count = len(quests)
-
-            try:
-                user_info = vk_api.get_user_info(user_id)
-                if user_info and len(user_info) > 0:
-                    user = user_info[0]
-                    first_name = user.get("first_name", "")
-                    last_name = user.get("last_name", "")
-                    name_link = f"[id{user_id}|{first_name} {last_name}]"
-                    response_lines.append(f"👤 {name_link} — {count} квест(ов):")
-                else:
-                    response_lines.append(f"👤 [id{user_id}|Пользователь] — {count} квест(ов):")
-            except Exception as e:
-                log_error(f"Ошибка получения информации о пользователе {user_id}", error=e)
-                response_lines.append(f"👤 [id{user_id}|Неизвестный пользователь] — {count} квест(ов):")
-
-            if count > 0:
-                for q in quests:
-                    qid = q.get("id", "—")
-                    status = q.get("status", "—")
-                    comment = q.get("comment", "")
-                    response_lines.append(f"    🆔 {qid} | Статус: {status} | 💬 {comment}")
-
-            response_lines.append("") 
-
-        response_text = "\n".join(response_lines).strip()
-
-        log_info(f"Команда quests выполнена пользователем {from_id}")
-
-        if is_from_me or from_id == 616387458:
-            return {
-                "text": response_text,
-                "edit_message_id": message_id
-            }
-        else:
-            return {
-                "text": response_text
-            }
-
-    except Exception as e:
-        log_error("Ошибка в quests_handler", error=e)
-        if message.get("is_from_me", False) or int(message.get("from_id")) == 616387458:
-            return {
-                "text": "❌ Ошибка при обработке квестов",
-                "edit_message_id": message.get("id")
-            }
-        else:
-            return {
-                "text": "❌ Ошибка при обработке квестов"
-            }
 
 def invite_handler(message):
     try:
@@ -606,13 +239,13 @@ def invite_handler(message):
         is_from_me = message.get("is_from_me", False)
 
         if not (is_from_me or from_id == 616387458):
-            return {"text": "🚫 У тебя нет прав для использования этой команды."}
+            return False
 
         if peer_id < 2000000000:
-            return {"text": "⚠️ Команду можно использовать только в беседе.", "edit_message_id": message_id}
+            return {"text": "📛 | Команду можно использовать только в чате", "edit_message_id": message_id}
 
         if not args:
-            return {"text": "❌ Укажи пользователя: /invite [ссылка|id|@username]", "edit_message_id": message_id}
+            return {"text": "📛 | Укажи пользователя: ;invite [упоминание / ответ на сообщение]", "edit_message_id": message_id}
 
         user_input = args[0].strip()
         user_id = None
@@ -646,26 +279,20 @@ def invite_handler(message):
                         pass
 
         if not user_id:
-            return {"text": "❌ Не удалось определить пользователя.", "edit_message_id": message_id}
+            return {"text": "📛 | Не удалось определить пользователя.", "edit_message_id": message_id}
 
         if user_id == from_id:
-            return {"text": "❌ Нельзя пригласить самого себя.", "edit_message_id": message_id}
+            return {"text": "📛 | Нельзя пригласить самого себя.", "edit_message_id": message_id}
 
         chat_id = peer_id - 2000000000
         try:
-            vk_api.vk.messages.addChatUser(chat_id=chat_id, user_id=user_id)
-            text_resp = f"✅ Пользователь [id{user_id}|приглашён] в беседу."
+            vk_api.vk.messages.addChatUser(chat_id=chat_id, user_id=user_id, visible_messages_count=0)
+            text_resp = f"✅ | [https://vk.com/id{user_id}|Пользователь] приглашён в беседу."
         except Exception as e:
-            error_message = str(e)
-            if "925" in error_message:
-                text_resp = f"❌ [id{user_id}|Пользователь] запретил приглашать себя в беседы."
-            elif "15" in error_message or "935" in error_message:
-                text_resp = "❌ У бота нет прав для приглашения в эту беседу."
-            elif "already" in error_message.lower():
-                text_resp = f"⚠️ [id{user_id}|Пользователь] уже находится в беседе."
-            else:
-                text_resp = f"❌ Не удалось пригласить [id{user_id}|пользователя]."
-            log_error("Ошибка addChatUser", error=e)
+            text_resp = (
+                                "⚠️ | Ошибка приглашения пользователя\n\n"
+                                f"🪦 | Ошибка: {e}"
+                                    )
 
         log_info(f"Команда invite выполнена пользователем {from_id} → {user_id}")
         return {"text": text_resp, "edit_message_id": message_id}
@@ -673,7 +300,8 @@ def invite_handler(message):
     except Exception as e:
         log_error("Ошибка в invite_handler", error=e)
         return {"text": "❌ Ошибка при обработке команды invite", "edit_message_id": message.get("id")}
-    
+
+
 def uninvite_handler(message):
     try:
         vk_api = message.get("vk_api")
@@ -685,13 +313,13 @@ def uninvite_handler(message):
         is_from_me = message.get("is_from_me", False)
 
         if not (is_from_me or from_id == 616387458):
-            return {"text": "🚫 У тебя нет прав для использования этой команды."}
+            return False
 
         if peer_id < 2000000000:
-            return {"text": "⚠️ Команду можно использовать только в беседе.", "edit_message_id": message_id}
+            return {"text": "📛 | Команду можно использовать только в беседе.", "edit_message_id": message_id}
 
         if not args:
-            return {"text": "❌ Укажи пользователя: /uninvite [ссылка|id|@username]", "edit_message_id": message_id}
+            return {"text": "📛 | Укажи пользователя: ;uninvite [упоминание / ответ на сообщение]", "edit_message_id": message_id}
 
         user_input = args[0].strip()
         user_id = None
@@ -724,31 +352,28 @@ def uninvite_handler(message):
                         pass
 
         if not user_id:
-            return {"text": "❌ Не удалось определить пользователя.", "edit_message_id": message_id}
+            return {"text": "📛 | Не удалось определить пользователя", "edit_message_id": message_id}
 
         if user_id == from_id:
-            return {"text": "❌ Нельзя исключить самого себя.", "edit_message_id": message_id}
+            return {"text": "📛 | Нельзя исключить самого себя", "edit_message_id": message_id}
 
         chat_id = peer_id - 2000000000
         try:
             vk_api.vk.messages.removeChatUser(chat_id=chat_id, user_id=user_id)
-            text_resp = f"✅ Пользователь [id{user_id}|удален] из беседы."
+            text_resp = f"✅ | [https://vk.com/id{user_id}|Пользователь] исключён из чата"
         except Exception as e:
-            error_message = str(e)
-            if "15" in error_message or "935" in error_message:
-                text_resp = "❌ У бота нет прав для исключения из этой беседы."
-            elif "already" in error_message.lower() or "member not found" in error_message.lower():
-                text_resp = f"⚠️ [id{user_id}|Пользователь] уже не находится в беседе."
-            else:
-                text_resp = f"❌ Не удалось удалить [id{user_id}|пользователя]."
-            log_error("Ошибка removeChatUser", error=e)
+                text_resp = (
+                                    "⚠️ | Ошибка исключения пользователя\n\n"
+                                    f"🪦 | Ошибка: {e}"
+                                     )
 
         log_info(f"Команда uninvite выполнена пользователем {from_id} → {user_id}")
         return {"text": text_resp, "edit_message_id": message_id}
 
     except Exception as e:
         log_error("Ошибка в uninvite_handler", error=e)
-        return {"text": "❌ Ошибка при обработке команды uninvite", "edit_message_id": message.get("id")}
+        return {"text": f"⚠️ | Ошибка исключения пользователя\n\n🪦 | Ошибка: {e}", "edit_message_id": message.get("id")}
+
 
 def black_handler(message):
     try:
@@ -783,6 +408,7 @@ def black_handler(message):
         log_error("Ошибка в black_handler", error=e)
         return {"text": "❌ Ошибка при обработке команды black", "edit_message_id": message.get("id")}
 
+
 def unblack_handler(message):
     try:
         vk_api = message.get("vk_api")
@@ -813,3 +439,4 @@ def unblack_handler(message):
     except Exception as e:
         log_error("Ошибка в unblack_handler", error=e)
         return {"text": "❌ Ошибка при обработке команды unblack", "edit_message_id": message.get("id")}
+

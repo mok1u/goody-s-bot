@@ -1,18 +1,20 @@
 from bot.handlers.message_handlers import (
-    black_handler,
-    get_handler,
+    time_handler, 
     getlink_handler,
-    getquest_handler,
     help_handler,
-    invite_handler,
-    links_handler,
-    quests_handler,
-    stopget_handler,
     sysinfo_handler,
-    time_handler,
-    unblack_handler,
+    invite_handler,
     uninvite_handler,
-    update_handler
+    black_handler,
+    unblack_handler
+)
+from bot.handlers.quests_module import (
+    update_handler,
+    links_handler,
+    get_handler,
+    getquest_handler,
+    stopget_handler,
+    quests_handler
 )
 from config import BOT_PREFIX
 

@@ -1,8 +1,8 @@
 import json
 import os
+import re
 import time
-
-from bot.utils.logger import log_error, log_info
+from bot.utils.logger import log_info, log_error
 
 class QuestEventHandler:
     def __init__(self):
@@ -37,6 +37,7 @@ class QuestEventHandler:
     
     def _parse_quests_response(self, text, peer_id):
         try:
+            
             if not self.current_link and peer_id in self.pending_quests:
                 current_time = time.time()
                 for link, timestamp in self.pending_quests[peer_id].items():

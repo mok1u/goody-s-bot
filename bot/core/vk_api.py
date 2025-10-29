@@ -1,7 +1,6 @@
 import vk_api
-from vk_api.longpoll import VkLongPoll
-
-from bot.utils.logger import log_error
+from vk_api.longpoll import VkLongPoll, VkEventType
+from bot.utils.logger import log_info, log_error
 
 class VKAPI:
     def __init__(self, access_token, api_version='5.199'):
