@@ -14,7 +14,8 @@ from bot.handlers.quests_module import (
     get_handler,
     getquest_handler,
     stopget_handler,
-    quests_handler
+    quests_handler,
+    infoquest_handler
 )
 from config import BOT_PREFIX
 
@@ -62,3 +63,4 @@ message_router.register_handler('invite', invite_handler)
 message_router.register_handler('uninvite', uninvite_handler)
 message_router.register_handler('black', black_handler)
 message_router.register_handler('unblack', unblack_handler)
+message_router.register_handler('checkquests', infoquest_handler)

@@ -375,3 +375,76 @@ def quests_handler(message):
             return {"text": "❌ Ошибка при обработке квестов", "edit_message_id": message.get("id")}
         return {"text": "❌ Ошибка при обработке квестов"}
 
+
+def infoquest_handler(message):
+    try:
+        vk_api = message.get("vk_api")
+        peer_id = message.get("peer_id")
+        message_id = message.get("id")
+        is_from_me = message.get("is_from_me", False)
+        bot = message.get("bot")
+
+        file_path = "quests.json"
+
+        if not os.path.exists(file_path):
+            text_resp = "❌ Файл quests.json не найден."
+            if is_from_me or int(message["from_id"]) == 616387458:
+                return {"text": text_resp, "edit_message_id": message_id}
+            return {"text": text_resp}
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            quests_data = json.load(f)
+
+        quest_ids = []
+        for user_quests in quests_data.values():
+            for q in user_quests:
+                qid = q.get("id")
+                if qid:
+                    quest_ids.append(qid)
+
+        if not quest_ids:
+            text_resp = "⚠️ Нет квестов для обработки."
+            if is_from_me or int(message["from_id"]) == 616387458:
+                return {"text": text_resp, "edit_message_id": message_id}
+            return {"text": text_resp}
+
+        # Отправляем сообщение о старте
+        if is_from_me or int(message["from_id"]) == 616387458:
+            vk_api.edit_message(
+                peer_id=peer_id,
+                message_id=message_id,
+                message=f"🔍 Начинаю обработку {len(quest_ids)} квестов..."
+            )
+
+        # Флаг для остановки (можно использовать stop_quests из bot)
+        bot.stop_infoquests = False
+
+        def send_infoquests():
+            try:
+                for idx, qid in enumerate(quest_ids, 1):
+                    if getattr(bot, "stop_infoquests", False):
+                        vk_api.send_message(peer_id=peer_id, message="⏹️ Обработка квестов остановлена")
+                        return
+
+                    msg = f"/infoquest {qid}"
+                    vk_api.send_message(peer_id=peer_id, message=msg)
+                    log_info(f"Отправлен запрос {idx}/{len(quest_ids)}: {msg}")
+                    time.sleep(3)
+                
+                vk_api.send_message(peer_id=peer_id, message="✅ Все квесты обработаны.")
+            except Exception as e:
+                log_error("Ошибка при отправке infoquest-запросов", error=e)
+                vk_api.send_message(peer_id=peer_id, message="❌ Ошибка при отправке infoquest-запросов")
+
+        thread = threading.Thread(target=send_infoquests)
+        thread.daemon = True
+        thread.start()
+
+        return None
+
+    except Exception as e:
+        log_error("Ошибка в infoquest_handler", error=e)
+        if message.get("is_from_me", False) or int(message["from_id"]) == 616387458:
+            return {"text": "❌ Ошибка при обработке infoquest", "edit_message_id": message.get("id")}
+        return {"text": "❌ Ошибка при обработке infoquest"}
+

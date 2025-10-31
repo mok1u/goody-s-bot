@@ -163,3 +163,4 @@ class QuestEventHandler:
             log_error(f"Ошибка очистки quests.json: {e}")
 
 quest_event_handler = QuestEventHandler()
+
